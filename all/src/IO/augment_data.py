@@ -1,4 +1,4 @@
-'''Collection of methods to augment data.  All methods have the X and y data as the first two arguments, and any number of kwargs'''
+'''image rotations'''
 from scipy.ndimage import rotate
 
 def _rotate_images(images_X, images_y, degrees=[0], axes=(1,0)) :
@@ -15,8 +15,7 @@ augment_methods = { 'rotate_images': _rotate_images,
 
 def augment_data( X, y, method_label, **method_kwargs) :
     try :
-        assert(method_label in augment_methods.keys())            
+        assert(method_label in augment_methods.keys())
     except KeyError :
         print 'method_label must be one of ', augment_methods.keys()
     return augment_methods[method_label](X, y, **method_kwargs)
-

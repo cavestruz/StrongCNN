@@ -5,14 +5,18 @@ from skimage.feature import hog
 from numpy.linalg import norm
 
 
-class MaskAverageImpute(BaseEstimator) :
+class MaskAverageImpute() :
+    '''
+    This is used for observed data with masked bright point sources.
+    It uses image_mask_avg_impute function to fill out masked values.
+    '''
     def __init__( self, mask_value = 100., max_iter = 5 ) :
         self.mask_value = mask_value
         self.max_iter = max_iter
 
     def fit( self, images, y = None ) :
         return self
-    
+
     def transform( self, images ) :
         return np.array( [ image_mask_avg_impute(image) for image in images ] )
 
@@ -21,6 +25,9 @@ class MaskAverageImpute(BaseEstimator) :
 
 
 class MedianSmooth(BaseEstimator):
+    '''
+    This was used during testing of the HOG feature extraction in hopes of reducing effects from noise.  However, a median filter creates spurious features in the HOG visualization that worsened model performance.  HOG already deals with small scale noise well.
+    '''
     def __init__(self, radius = 3):
         self.radius = radius
 
@@ -47,7 +54,7 @@ class Flatten(BaseEstimator) :
         return np.array( [ image.flatten() for image in images ] )
 
     def fit_transform( self, images, y = None ) :
-        return self.transform( images ) 
+        return self.transform( images )
 
 class UnFlatten(BaseEstimator) :
     def __init__( self, shape = (101, 101) ) :
@@ -60,10 +67,10 @@ class UnFlatten(BaseEstimator) :
         return np.array( [ np.reshape( image, self.shape ) for image in images ] )
 
     def fit_transform( self, images, y = None ) :
-        return self.transform( images ) 
+        return self.transform( images )
 
 
-class Norm(BaseEstimator) : 
+class Norm(BaseEstimator) :
     def __init__( self, axis=None ) :
         self.axis = axis
 
@@ -72,12 +79,12 @@ class Norm(BaseEstimator) :
 
     def transform( self, images ) :
         from numpy.linalg import norm
-        return np.array( [ image/norm(image) for image in images ] ) 
-    
+        return np.array( [ image/norm(image) for image in images ] )
+
     def fit_transform( self, images, y = None ) :
         return self.transform( images )
 
-        
+
 class Clip(BaseEstimator) :
     '''Numpy clip'''
 
@@ -86,13 +93,13 @@ class Clip(BaseEstimator) :
         self.clip_min = lower
         self.clip_max = upper
 
-    def fit(self, image, y = None) : 
+    def fit(self, image, y = None) :
 
         return self
 
     def transform( self, images ) :
 
-        return np.array( [ np.clip( image, self.clip_min, self.clip_max ) 
+        return np.array( [ np.clip( image, self.clip_min, self.clip_max )
                            for image in images ] )
 
     def fit_transform( self, images, y = None ) :
@@ -104,7 +111,7 @@ class LogPositiveDefinite(BaseEstimator) :
     log of image and making log positive definite. Return normalized
     values.'''
 
-    def __init__( self, log = True, shift = None ) : 
+    def __init__( self, log = True, shift = None ) :
         self.log = log
         self.shift = shift
 
@@ -119,7 +126,7 @@ class LogPositiveDefinite(BaseEstimator) :
             return image + self.shift
 
     def _normalize( self, image ) :
-        if self.log : 
+        if self.log :
             return np.log( self._make_positive(image) ) / np.log( self._make_positive(image) ).max()
         else :
             return self._make_positive(image) / self._make_positive(image).max()
@@ -129,13 +136,13 @@ class LogPositiveDefinite(BaseEstimator) :
 
 class PreprocessHST( BaseEstimator ) :
     '''This is significantly the best set of preprocessing I've found
-    for our HST like data.'''
+    for our HST like data.  This combines the Clip, Norm, and LogPositiveDefinite pipeline objects.'''
     def __init__( self, lower_clip = 1e-6, upper_clip = 1e100, shift = 1.0 ):
         self.lower_clip = lower_clip
         self.upper_clip = upper_clip
         self.shift = shift
 
-    def fit( self, images, y=None ) :
+    def fit( self, images = [], y=None ) :
         return self
 
     def _pos_def( self, image ) :
@@ -145,10 +152,13 @@ class PreprocessHST( BaseEstimator ) :
         return np.array( [ np.log(self._pos_def(image)) / abs(np.log(self._pos_def(image))).max() for image in images ] )
 
     def fit_transform( self, images, y = None ) :
-        return self.transform( images ) 
+        return self.transform( images )
 
 class MidpointSigmaClip(BaseEstimator) :
-    '''Clips the data at n sigma from a midpoint.
+    '''
+    This is useful when the noise level is not a priori known.
+
+    Clips the data at n sigma from a midpoint.
     kwargs
     ---------
     sigma_factor : -1 means 1 sigma below the midpoint
@@ -160,13 +170,13 @@ class MidpointSigmaClip(BaseEstimator) :
         if normalize == 1. : self.normalize = True
         else : self.normalize = False
         mid_point_options = ['median', 'mean' ]
-                                   
+
         assert( mid_point in mid_point_options )
         self.mid_point = mid_point
 
     def fit( self, images, y = None ) :
         return self
-    
+
     def _calc_lower_clip( self, image ) :
         if self.mid_point == 'median' :
             return np.median( image ) + image.std() * self.sigma_factor
@@ -177,7 +187,7 @@ class MidpointSigmaClip(BaseEstimator) :
         return np.clip(image, self._calc_lower_clip(image), self.upper_clip)
 
     def transform( self, images ) :
-        if self.normalize : 
+        if self.normalize :
             #from numpy.linalg import norm
             from sklearn.preprocessing import normalize
             return np.array([ self._clip(normalize(image)) for image in images])
@@ -223,7 +233,7 @@ class SKPreProcessNormalizeConcatenated(BaseEstimator) :
 
 
 class ConcatenatedHOG(BaseEstimator) :
-    '''For multiband training - specific to DES four band.  
+    '''For multiband training - specific to KiDS four band.
     Requires tuples of the hog parameterization for each band'''
     def __init__( self, orientations=(4, 5, 6, 4),
                   pixels_per_cell=((16,16),(16,16),(16,16),(16,16)),
@@ -244,7 +254,7 @@ class ConcatenatedHOG(BaseEstimator) :
         return np.clip( image, image.mean() - image.std(), 1e100 )
 
     def _norm( self, image ) :
-        return image / norm( image ) 
+        return image / norm( image )
 
     def _log_pos_def( self, image ) :
         return np.log( image + 1.0 )
@@ -258,11 +268,11 @@ class ConcatenatedHOG(BaseEstimator) :
                                for i in range( image.shape[0] ) ] )
         else :
             return self._div_by_max( self._log_pos_def( self._norm( self._clip( image ) ) ) )
-                   
+
     def _concatenated_hog( self, image ) :
-        for kwarg in [ self.orientations, self.pixels_per_cell, 
+        for kwarg in [ self.orientations, self.pixels_per_cell,
                        self.cells_per_block ] :
-            try : 
+            try :
                 assert( image.shape[0] == len(kwarg) )
             except AssertionError :
                 print "assertion error", image.shape[0],'!=',len(kwarg),' for ', kwarg
@@ -270,13 +280,13 @@ class ConcatenatedHOG(BaseEstimator) :
         if self.avg_mask :
             if len(image.shape) == 2 :
                 i = 0
-                return hog( self._preprocess( image_mask_avg_impute(image) ), 
+                return hog( self._preprocess( image_mask_avg_impute(image) ),
                                           orientations = self.orientations[i],
                                           pixels_per_cell = self.pixels_per_cell[i],
                                           cells_per_block = self.cells_per_block[i]
                                           )
             else :
-                return np.concatenate( [ hog( self._preprocess( image_mask_avg_impute(image[i]) ), 
+                return np.concatenate( [ hog( self._preprocess( image_mask_avg_impute(image[i]) ),
                                               orientations = self.orientations[i],
                                               pixels_per_cell = self.pixels_per_cell[i],
                                               cells_per_block = self.cells_per_block[i]
@@ -284,14 +294,14 @@ class ConcatenatedHOG(BaseEstimator) :
         else :
             if len(image.shape) == 2 :
                 i = 0
-                return hog( self._preprocess(image), 
+                return hog( self._preprocess(image),
                             orientations = self.orientations[i],
                             pixels_per_cell = self.pixels_per_cell[i],
                             cells_per_block = self.cells_per_block[i]
                             )
 
             else :
-                return np.concatenate( [ hog( self._preprocess(image[i]), 
+                return np.concatenate( [ hog( self._preprocess(image[i]),
                                               orientations = self.orientations[i],
                                               pixels_per_cell = self.pixels_per_cell[i],
                                               cells_per_block = self.cells_per_block[i]
@@ -301,12 +311,15 @@ class ConcatenatedHOG(BaseEstimator) :
     def transform( self, images ) :
         return np.array([ self._concatenated_hog( image ) for image in images ])
 
-        
+
     def fit_transform(self, images, y = None):
         return self.transform(images)
-                  
+
 
 class HOG(BaseEstimator):
+    '''
+    Primary feature extraction method tested.
+    '''
     def __init__( self, orientations = 9, pixels_per_cell = (8, 8),
                  cells_per_block = (3, 3) ):
         self.orientations = orientations
@@ -380,12 +393,12 @@ def _get_neighbors(image, i, j):
     return neighbor_vals
 
 image_processors = { 'median_filter' : MedianSmooth(),
-                     'hog' : HOG(),    
+                     'hog' : HOG(), # Most used
                      'clip' : Clip(),
                      'log_positive_definite' : LogPositiveDefinite(),
                      'scale' : StandardScaler(),
                      'imputer' : Imputer(),
-                     'hst' : PreprocessHST(),
+                     'hst' : PreprocessHST(), # Most used for just HST
                      'midpointsigmaclip' : MidpointSigmaClip(),
                      'norm' : Norm(),
                      'normalizer' : Normalizer(),
@@ -396,5 +409,3 @@ image_processors = { 'median_filter' : MedianSmooth(),
                      'sknormalize' : SKPreProcessNormalize(),
                      'sknormalize_cat' :  SKPreProcessNormalizeConcatenated(),
                      }
-
-
